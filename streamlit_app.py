@@ -149,7 +149,7 @@ def process_files(tiktok_file_buffer, tag_file_buffer):
         lambda row: update_click_url(
             row['Web URL'], # Changed from 'Click URL' to 'Web URL'
             row[click_tracker_col],
-            row['Campaign Name_tiktok']
+            row['Campaign Name'] # Changed from 'Campaign Name_tiktok' to 'Campaign Name'
         ),
         axis=1
     )
