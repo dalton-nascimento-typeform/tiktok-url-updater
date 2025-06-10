@@ -123,18 +123,21 @@ def process_files(tiktok_file_buffer, tag_file_buffer):
     df_tags['Ad Name'] = df_tags['Ad Name'].astype(str).fillna('')
 
     # --- Identify Click Tracker and Impression Tracker columns ---
-    click_tracker_col = find_tracker_column(df_tags, ['click', 'tracker'], required_for_match=2)
-    impression_tracker_col = find_tracker_column(df_tags, ['impression', 'tracker'], required_for_match=2)
+    # Adjusted keywords based on your feedback: "Click Tag" and "Impression Tag (image)"
+    click_tracker_col = find_tracker_column(df_tags, ['click', 'tag'], required_for_match=2)
+    impression_tracker_col = find_tracker_column(df_tags, ['impression', 'tag'], required_for_match=2)
 
     if not click_tracker_col:
         raise ValueError(
-            f"Could not find a 'Click Tracker' column in the Tag file. "
-            f"Available columns are: {df_tags.columns.tolist()}"
+            f"Could not find a 'Click Tag' column in the Tag file. "
+            f"Available columns are: {df_tags.columns.tolist()}. "
+            f"Expected a column containing 'click' and 'tag' (case-insensitive)."
         )
     if not impression_tracker_col:
         raise ValueError(
-            f"Could not find an 'Impression Tracker' column in the Tag file. "
-            f"Available columns are: {df_tags.columns.tolist()}"
+            f"Could not find an 'Impression Tag' column in the Tag file. "
+            f"Available columns are: {df_tags.columns.tolist()}. "
+            f"Expected a column containing 'impression' and 'tag' (case-insensitive)."
         )
 
     # --- Matching Logic: Merge DataFrames ---
