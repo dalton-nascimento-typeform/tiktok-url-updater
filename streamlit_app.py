@@ -62,22 +62,6 @@ def extract_impression_url(impression_tracker_string):
         return match.group(1)
     return None
 
-def find_tracker_column(df, keywords, required_for_match=1):
-    """
-    Flexibly finds a column in the DataFrame that contains all specified keywords.
-    Keywords are case-insensitive.
-    """
-    df_columns_lower = [col.lower() for col in df.columns]
-
-    for col_original, col_lower in zip(df.columns, df_columns_lower):
-        match_count = 0
-        for keyword in keywords:
-            if keyword.lower() in col_lower:
-                match_count += 1
-        if match_count >= required_for_match: # At least one keyword match required
-            return col_original
-    return None
-
 @st.cache_data
 def process_files(tiktok_file_buffer, tag_file_buffer):
     """
@@ -123,21 +107,20 @@ def process_files(tiktok_file_buffer, tag_file_buffer):
     df_tags['Ad Name'] = df_tags['Ad Name'].astype(str).fillna('')
 
     # --- Identify Click Tracker and Impression Tracker columns ---
-    # Adjusted keywords based on your feedback: "Click Tag" and "Impression Tag (image)"
-    click_tracker_col = find_tracker_column(df_tags, ['click', 'tag'], required_for_match=2)
-    impression_tracker_col = find_tracker_column(df_tags, ['impression', 'tag'], required_for_match=2)
+    # Directly use the exact column names provided by the user
+    click_tracker_col = 'Click Tag'
+    impression_tracker_col = 'Impression Tag (image)'
 
-    if not click_tracker_col:
+    # Validate that these columns exist in the DataFrame
+    if click_tracker_col not in df_tags.columns:
         raise ValueError(
-            f"Could not find a 'Click Tag' column in the Tag file. "
-            f"Available columns are: {df_tags.columns.tolist()}. "
-            f"Expected a column containing 'click' and 'tag' (case-insensitive)."
+            f"Expected column '{click_tracker_col}' not found in the Tag file. "
+            f"Available columns are: {df_tags.columns.tolist()}"
         )
-    if not impression_tracker_col:
+    if impression_tracker_col not in df_tags.columns:
         raise ValueError(
-            f"Could not find an 'Impression Tag' column in the Tag file. "
-            f"Available columns are: {df_tags.columns.tolist()}. "
-            f"Expected a column containing 'impression' and 'tag' (case-insensitive)."
+            f"Expected column '{impression_tracker_col}' not found in the Tag file. "
+            f"Available columns are: {df_tags.columns.tolist()}"
         )
 
     # --- Matching Logic: Merge DataFrames ---
@@ -231,7 +214,7 @@ if tiktok_file and tag_file:
                 st.dataframe(updated_df.head()) # Display a preview of the updated data
             except ValueError as ve:
                 st.error(f"File format or column error: {ve}")
-                st.info("Please ensure you are uploading the correct file types (CSV or XLSX) and that the specified sheet names exist if uploading Excel files.")
+                st.info("Please ensure you are uploading the correct file types (CSV or XLSX) and that the specified sheet names exist if uploading Excel files. Also check the exact column names in your tag file.")
             except Exception as e:
                 st.error(f"An unexpected error occurred during processing: {e}")
                 st.error("Please ensure your files are in the correct format and the correct sheets are selected.")
