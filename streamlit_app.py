@@ -69,10 +69,26 @@ def process_files(tiktok_file_buffer, tag_file_buffer):
     This function is cached for performance with Streamlit.
     """
     # --- Load Data ---
-    # Use io.BytesIO to read the uploaded files
-    df_tiktok = pd.read_csv(tiktok_file_buffer)
-    # Header is in row 11, so pandas header parameter should be 10 (0-indexed)
-    df_tags = pd.read_csv(tag_file_buffer, header=10)
+    # Determine file type for TikTok file and read accordingly
+    if tiktok_file_buffer.name.endswith('.csv'):
+        df_tiktok = pd.read_csv(tiktok_file_buffer)
+    elif tiktok_file_buffer.name.endswith('.xlsx'):
+        # For Excel, the sheet name is 'Ads'
+        df_tiktok = pd.read_excel(tiktok_file_buffer, sheet_name='Ads')
+    else:
+        raise ValueError("Unsupported TikTok file format. Please upload a .csv or .xlsx file.")
+
+
+    # Determine file type for Tag file and read accordingly
+    if tag_file_buffer.name.endswith('.csv'):
+        # Header is in row 11, so pandas header parameter should be 10 (0-indexed)
+        df_tags = pd.read_csv(tag_file_buffer, header=10)
+    elif tag_file_buffer.name.endswith('.xlsx'):
+        # For Excel, the sheet name is 'Tracking Ads' and header is in row 11
+        df_tags = pd.read_excel(tag_file_buffer, sheet_name='Tracking Ads', header=10)
+    else:
+        raise ValueError("Unsupported Tag file format. Please upload a .csv or .xlsx file.")
+
 
     # --- Preprocessing: Clean column names and ensure consistency ---
     # Strip whitespace from column names for robust matching
@@ -140,12 +156,12 @@ st.markdown("""
 
 # File Uploaders
 tiktok_file = st.file_uploader(
-    "Upload TikTok Export File (Ads.csv from 'ExportAds_Test.xlsx - Ads.csv')",
-    type=["csv"]
+    "Upload TikTok Export File (e.g., 'ExportAds_Test.xlsx - Ads.csv' or 'ExportAds_Test.xlsx')",
+    type=["csv", "xlsx"] # Now accepts both CSV and XLSX
 )
 tag_file = st.file_uploader(
-    "Upload DCM Tag File (Tracking Ads.csv from 'Tags_US-TF-AO-BRA-SS-Prospecting-Online_Video-TikTok-Awareness_Influencers_ReachAndFrequency_Marketing_0_PARENT_ADVERTISER.xlsx - Tracking Ads.csv')",
-    type=["csv"]
+    "Upload DCM Tag File (e.g., 'Tags_US-TF-AO-BRA-SS-Prospecting-Online_Video-TikTok-Awareness_Influencers_ReachAndFrequency_Marketing_0_PARENT_ADVERTISER.xlsx - Tracking Ads.csv' or 'Tags_US-TF-AO-BRA-SS-Prospecting-Online_Video-TikTok-Awareness_Influencers_ReachAndFrequency_Marketing_0_PARENT_ADVERTISER.xlsx')",
+    type=["csv", "xlsx"] # Now accepts both CSV and XLSX
 )
 
 if tiktok_file and tag_file:
@@ -155,7 +171,7 @@ if tiktok_file and tag_file:
                 updated_df = process_files(tiktok_file, tag_file)
                 st.success("Files processed successfully!")
 
-                # Provide download button
+                # Provide download button for CSV
                 csv_buffer = io.StringIO()
                 updated_df.to_csv(csv_buffer, index=False)
                 st.download_button(
@@ -163,13 +179,29 @@ if tiktok_file and tag_file:
                     data=csv_buffer.getvalue(),
                     file_name="Updated_TikTok_Ads.csv",
                     mime="text/csv",
-                    help="Click to download the updated TikTok Ads file."
+                    help="Click to download the updated TikTok Ads file in CSV format."
                 )
+
+                # Provide download button for Excel
+                excel_buffer = io.BytesIO()
+                updated_df.to_excel(excel_buffer, index=False, sheet_name='Updated Ads')
+                excel_buffer.seek(0) # Rewind the buffer to the beginning
+                st.download_button(
+                    label="Download Updated TikTok Ads XLSX",
+                    data=excel_buffer.getvalue(),
+                    file_name="Updated_TikTok_Ads.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Click to download the updated TikTok Ads file in XLSX format."
+                )
+
                 st.dataframe(updated_df.head()) # Display a preview of the updated data
+            except ValueError as ve:
+                st.error(f"File format error: {ve}")
+                st.info("Please ensure you are uploading the correct file types (CSV or XLSX) and that the specified sheet names exist if uploading Excel files.")
             except Exception as e:
-                st.error(f"An error occurred during processing: {e}")
+                st.error(f"An unexpected error occurred during processing: {e}")
                 st.error("Please ensure your files are in the correct format and the correct sheets are selected.")
-                st.info("Remember: TikTok export file has standard headers in row 1. Tag files have headers in row 11.")
+                st.info("Remember: TikTok export file has standard headers in row 1 (sheet 'Ads'). Tag files have headers in row 11 (sheet 'Tracking Ads').")
 else:
     st.info("Please upload both TikTok Export and DCM Tag files to proceed.")
 
