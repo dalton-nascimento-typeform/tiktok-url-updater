@@ -100,6 +100,13 @@ def process_files(tiktok_file_buffer, tag_file_buffer):
     df_tiktok['Campaign Name'] = df_tiktok['Campaign Name'].astype(str).fillna('')
     df_tiktok['Ad Group Name'] = df_tiktok['Ad Group Name'].astype(str).fillna('')
     df_tiktok['Ad Name'] = df_tiktok['Ad Name'].astype(str).fillna('')
+    # IMPORTANT: Use 'Web URL' for TikTok file instead of 'Click URL'
+    if 'Web URL' not in df_tiktok.columns:
+        raise ValueError(
+            f"Expected column 'Web URL' not found in the TikTok file. "
+            f"Available columns are: {df_tiktok.columns.tolist()}"
+        )
+
 
     # Tag file columns
     df_tags['Campaign Name'] = df_tags['Campaign Name'].astype(str).fillna('')
@@ -134,15 +141,15 @@ def process_files(tiktok_file_buffer, tag_file_buffer):
         suffixes=('_tiktok', '_tag') # Suffixes to differentiate columns with same names
     )
 
-    # --- Update Click URL ---
+    # --- Update Click URL (now 'Web URL' in tiktok side) ---
     # Apply the update_click_url function row-wise
-    # Use the original 'Click URL' from TikTok and the dynamically found 'Click Tracker' from the merged data
+    # Use the original 'Web URL' from TikTok and the dynamically found 'Click Tracker' from the merged data
     # Pass 'Campaign Name' from the TikTok side for parameter population
-    merged_df['Click URL'] = merged_df.apply(
+    merged_df['Web URL'] = merged_df.apply( # Changed from 'Click URL' to 'Web URL'
         lambda row: update_click_url(
-            row['Click URL'],
-            row[click_tracker_col], # Use the dynamically found column
-            row['Campaign Name_tiktok'] # Use the Campaign Name from the TikTok side
+            row['Web URL'], # Changed from 'Click URL' to 'Web URL'
+            row[click_tracker_col],
+            row['Campaign Name_tiktok']
         ),
         axis=1
     )
@@ -150,7 +157,7 @@ def process_files(tiktok_file_buffer, tag_file_buffer):
     # --- Update Impression tracking URL ---
     # Apply the extract_impression_url function row-wise
     merged_df['Impression tracking URL'] = merged_df.apply(
-        lambda row: extract_impression_url(row[impression_tracker_col]), # Use the dynamically found column
+        lambda row: extract_impression_url(row[impression_tracker_col]),
         axis=1
     )
 
@@ -174,11 +181,11 @@ st.markdown("""
 # File Uploaders
 tiktok_file = st.file_uploader(
     "Upload TikTok Export File (e.g., 'ExportAds_Test.xlsx - Ads.csv' or 'ExportAds_Test.xlsx')",
-    type=["csv", "xlsx"] # Now accepts both CSV and XLSX
+    type=["csv", "xlsx"]
 )
 tag_file = st.file_uploader(
     "Upload DCM Tag File (e.g., 'Tags_US-TF-AO-BRA-SS-Prospecting-Online_Video-TikTok-Awareness_Influencers_ReachAndFrequency_Marketing_0_PARENT_ADVERTISER.xlsx - Tracking Ads.csv' or 'Tags_US-TF-AO-BRA-SS-Prospecting-Online_Video-TikTok-Awareness_Influencers_ReachAndFrequency_Marketing_0_PARENT_ADVERTISER.xlsx')",
-    type=["csv", "xlsx"] # Now accepts both CSV and XLSX
+    type=["csv", "xlsx"]
 )
 
 if tiktok_file and tag_file:
@@ -202,7 +209,7 @@ if tiktok_file and tag_file:
                 # Provide download button for Excel
                 excel_buffer = io.BytesIO()
                 updated_df.to_excel(excel_buffer, index=False, sheet_name='Updated Ads')
-                excel_buffer.seek(0) # Rewind the buffer to the beginning
+                excel_buffer.seek(0)
                 st.download_button(
                     label="Download Updated TikTok Ads XLSX",
                     data=excel_buffer.getvalue(),
@@ -211,14 +218,14 @@ if tiktok_file and tag_file:
                     help="Click to download the updated TikTok Ads file in XLSX format."
                 )
 
-                st.dataframe(updated_df.head()) # Display a preview of the updated data
+                st.dataframe(updated_df.head())
             except ValueError as ve:
                 st.error(f"File format or column error: {ve}")
                 st.info("Please ensure you are uploading the correct file types (CSV or XLSX) and that the specified sheet names exist if uploading Excel files. Also check the exact column names in your tag file.")
             except Exception as e:
                 st.error(f"An unexpected error occurred during processing: {e}")
                 st.error("Please ensure your files are in the correct format and the correct sheets are selected.")
-                st.info("Remember: TikTok export file has standard headers in row 1 (sheet 'Ads'). Tag files have headers in row 11 (sheet 'Tracking Ads').")
+                st.info("Remember: TikTok export file has standard headers in row 1 (sheet 'Ads') with 'Web URL'. Tag files have headers in row 11 (sheet 'Tracking Ads') with 'Click Tag' and 'Impression Tag (image)'.")
 else:
     st.info("Please upload both TikTok Export and DCM Tag files to proceed.")
 
