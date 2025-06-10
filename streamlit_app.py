@@ -62,6 +62,22 @@ def extract_impression_url(impression_tracker_string):
         return match.group(1)
     return None
 
+def find_tracker_column(df, keywords, required_for_match=1):
+    """
+    Flexibly finds a column in the DataFrame that contains all specified keywords.
+    Keywords are case-insensitive.
+    """
+    df_columns_lower = [col.lower() for col in df.columns]
+
+    for col_original, col_lower in zip(df.columns, df_columns_lower):
+        match_count = 0
+        for keyword in keywords:
+            if keyword.lower() in col_lower:
+                match_count += 1
+        if match_count >= required_for_match: # At least one keyword match required
+            return col_original
+    return None
+
 @st.cache_data
 def process_files(tiktok_file_buffer, tag_file_buffer):
     """
@@ -106,11 +122,26 @@ def process_files(tiktok_file_buffer, tag_file_buffer):
     df_tags['Placement Name'] = df_tags['Placement Name'].astype(str).fillna('')
     df_tags['Ad Name'] = df_tags['Ad Name'].astype(str).fillna('')
 
+    # --- Identify Click Tracker and Impression Tracker columns ---
+    click_tracker_col = find_tracker_column(df_tags, ['click', 'tracker'], required_for_match=2)
+    impression_tracker_col = find_tracker_column(df_tags, ['impression', 'tracker'], required_for_match=2)
+
+    if not click_tracker_col:
+        raise ValueError(
+            f"Could not find a 'Click Tracker' column in the Tag file. "
+            f"Available columns are: {df_tags.columns.tolist()}"
+        )
+    if not impression_tracker_col:
+        raise ValueError(
+            f"Could not find an 'Impression Tracker' column in the Tag file. "
+            f"Available columns are: {df_tags.columns.tolist()}"
+        )
+
     # --- Matching Logic: Merge DataFrames ---
-    # Perform a left merge to keep all TikTok rows and add tag data where matches are found
+    # Only select the identified tracker columns from df_tags
     merged_df = pd.merge(
         df_tiktok,
-        df_tags[['Campaign Name', 'Placement Name', 'Ad Name', 'Click Tracker', 'Impression Tracker']],
+        df_tags[['Campaign Name', 'Placement Name', 'Ad Name', click_tracker_col, impression_tracker_col]],
         left_on=['Campaign Name', 'Ad Group Name', 'Ad Name'],
         right_on=['Campaign Name', 'Placement Name', 'Ad Name'],
         how='left',
@@ -119,12 +150,12 @@ def process_files(tiktok_file_buffer, tag_file_buffer):
 
     # --- Update Click URL ---
     # Apply the update_click_url function row-wise
-    # Use the original 'Click URL' from TikTok and the 'Click Tracker' from the merged data
+    # Use the original 'Click URL' from TikTok and the dynamically found 'Click Tracker' from the merged data
     # Pass 'Campaign Name' from the TikTok side for parameter population
     merged_df['Click URL'] = merged_df.apply(
         lambda row: update_click_url(
             row['Click URL'],
-            row['Click Tracker'],
+            row[click_tracker_col], # Use the dynamically found column
             row['Campaign Name_tiktok'] # Use the Campaign Name from the TikTok side
         ),
         axis=1
@@ -133,14 +164,14 @@ def process_files(tiktok_file_buffer, tag_file_buffer):
     # --- Update Impression tracking URL ---
     # Apply the extract_impression_url function row-wise
     merged_df['Impression tracking URL'] = merged_df.apply(
-        lambda row: extract_impression_url(row['Impression Tracker']),
+        lambda row: extract_impression_url(row[impression_tracker_col]), # Use the dynamically found column
         axis=1
     )
 
     # --- Final Output Preparation ---
     # Drop the temporary columns introduced by the merge from the tag file
     # We only want to keep the original TikTok columns updated
-    columns_to_drop = [col for col in merged_df.columns if col.endswith('_tag') or col in ['Click Tracker', 'Impression Tracker', 'Placement Name']]
+    columns_to_drop = [col for col in merged_df.columns if col.endswith('_tag') or col in [click_tracker_col, impression_tracker_col, 'Placement Name']]
     final_df = merged_df.drop(columns=columns_to_drop, errors='ignore')
 
     return final_df
@@ -196,7 +227,7 @@ if tiktok_file and tag_file:
 
                 st.dataframe(updated_df.head()) # Display a preview of the updated data
             except ValueError as ve:
-                st.error(f"File format error: {ve}")
+                st.error(f"File format or column error: {ve}")
                 st.info("Please ensure you are uploading the correct file types (CSV or XLSX) and that the specified sheet names exist if uploading Excel files.")
             except Exception as e:
                 st.error(f"An unexpected error occurred during processing: {e}")
